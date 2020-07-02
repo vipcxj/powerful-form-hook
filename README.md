@@ -1,3 +1,3 @@
-# codemirror-template-mode
+# powerful-form-hook
 
-A mode for codemirror which for a custom template language.
+A hook to help create form in React.
