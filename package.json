@@ -2,7 +2,7 @@
   "name": "powerful-form-hook",
   "version": "1.0.0",
   "description": "a hook to help create form in react",
-  "main": "dist/index.ts",
+  "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist"
