@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Errors, FieldValidateError, useForm, ValidateFunction } from '../src';
+import { Errors, FieldValidateError, useForm, ValidateFunction, OnSubmitFunction } from '../src';
 
 export default { title: 'useForm' };
 
@@ -85,7 +85,7 @@ export const Demo = () => {
     }
     return errors;
   }, [nameStatus, emailStatus]);
-  const onSubmit = React.useCallback(async () => {
+  const onSubmit: OnSubmitFunction<typeof initialValue> = React.useCallback(async () => {
     await sleep(2500);
     alert('提交成功');
   }, []);
