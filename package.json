@@ -12,7 +12,8 @@
     "build": "tsc -b tsconfig.json",
     "prepublish": "npm run-script build",
     "storybook": "start-storybook -p 6006",
-    "build-storybook": "build-storybook"
+    "build-storybook": "build-storybook",
+    "deploy-storybook": "storybook-to-ghpages"
   },
   "keywords": [
     "form",
@@ -24,8 +25,9 @@
   "sideEffects": true,
   "devDependencies": {
     "@babel/core": "^7.10.4",
-    "@storybook/react": "^5.3.19",
     "@storybook/preset-typescript": "^3.0.0",
+    "@storybook/react": "^5.3.19",
+    "@storybook/storybook-deployer": "^2.8.6",
     "@types/react": "^16.9.41",
     "babel-loader": "^8.1.0",
     "typescript": "^3.9.6"
