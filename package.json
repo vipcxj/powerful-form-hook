@@ -1,0 +1,37 @@
+{
+  "name": "powerful-form-hook",
+  "version": "1.0.1",
+  "description": "a hook to help create form in react",
+  "main": "dist/index.ts",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc -b tsconfig.json",
+    "prepublish": "npm run-script build",
+    "storybook": "start-storybook -p 6006",
+    "build-storybook": "build-storybook"
+  },
+  "keywords": [
+    "form",
+    "hook",
+    "react"
+  ],
+  "author": "vipcxj",
+  "license": "MIT",
+  "sideEffects": true,
+  "devDependencies": {
+    "@babel/core": "^7.10.4",
+    "@storybook/react": "^5.3.19",
+    "@storybook/preset-typescript": "^3.0.0",
+    "@types/react": "^16.9.41",
+    "babel-loader": "^8.1.0",
+    "typescript": "^3.9.6"
+  },
+  "peerDependencies": {
+    "react": ">= 16"
+  },
+  "dependencies": {}
+}
