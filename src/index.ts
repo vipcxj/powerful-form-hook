@@ -13,13 +13,22 @@ export type Errors<Values extends Record<string, any>> = {
 
 export class FieldValidateError extends Error {
     constructor(public field: string, message?: string) {
+        // 'Error' breaks prototype chain here
         super(message);
+        // restore prototype chain
+        const actualProto = new.target.prototype;
+
+        if (Object.setPrototypeOf) {
+            Object.setPrototypeOf(this, actualProto);
+        } else {
+            (this as any).__proto__ = actualProto;
+        }
     }
 }
 
 interface UseFormConfig<Values extends Record<string, any>> {
     initialValues: Values;
-    validate: (values, meta: Meta<Values>, submit: boolean) => Errors<Values> | Promise<Errors<Values>>;
+    validate: (values: Values, meta: Meta<Values>, submit: boolean) => Errors<Values> | Promise<Errors<Values>>;
     onSubmit: (values: Values) => void | Promise<void>;
 }
 
@@ -198,7 +207,7 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
         initialValues,
         key => {
             const meta = mapValues(initialValues, k => ({ change: k === key, blur: false }));
-            return value => {
+            return (value: any) => {
                 if (submitting) return;
                 let target = value;
                 if (value instanceof Event || value.originalEvent instanceof Event || value.nativeEvent instanceof Event) {
