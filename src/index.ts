@@ -105,6 +105,11 @@ function hasError<Values extends Record<string, any>>(
     return Object.keys(newErrors).some(key => newErrors[key].error) || typeof globalError === 'string';
 }
 
+interface HandleChange {
+    (value: any): void;
+    checked: (value: any) => void;
+}
+
 export const useForm = <Values extends Record<string, any>> ({ initialValues, validate, onSubmit }: UseFormConfig<Values>) => {
     const [values, setValues] = React.useState(initialValues);
     const [errors, setErrors] = React.useState<ErrorsState<Values>>(() => mapValues(initialValues, _ => {
@@ -203,11 +208,11 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
         }
         return [errorsPatch, globalErrorsPatch, version] as const;
     }, [setValidatingState, validate, setErrors, setGlobalErrors]);
-    const handleChanges = React.useMemo(() => mapValues(
+    const handleChanges: Record<keyof Values, HandleChange> = React.useMemo(() => mapValues(
         initialValues,
         key => {
             const meta = mapValues(initialValues, k => ({ change: k === key, blur: false }));
-            return (value: any) => {
+            const handleChange = (value: any): void => {
                 if (submitting) return;
                 let target = value;
                 if (value instanceof Event || value.originalEvent instanceof Event || value.nativeEvent instanceof Event) {
@@ -220,9 +225,17 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
                     return newValues;
                 });
             }
+            handleChange.checked = (value: any): void => {
+                let target = value;
+                if (value instanceof Event || value.originalEvent instanceof Event || value.nativeEvent instanceof Event) {
+                    target = value.target.checked;
+                }
+                handleChange(target);
+            }
+            return handleChange;
         },
     ), [submitting, execValidate]);
-    const handleBlurs = React.useMemo(() => mapValues(
+    const handleBlurs: Record<keyof Values, () => void> = React.useMemo(() => mapValues(
         initialValues,
         key => {
             const meta = mapValues(initialValues, k => ({ change: false, blur: k === key }));
