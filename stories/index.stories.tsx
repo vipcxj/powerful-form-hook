@@ -6,7 +6,8 @@ import {
   TextField} from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import * as React from 'react';
-import { Errors, FieldValidateError, useForm, ValidateFunction, OnSubmitFunction } from '../src';
+import { createValidator, useForm, OnSubmitFunction } from '../src';
+import { REG_SPECIAL, string } from '../src/validate';
 
 export default { title: 'useForm' };
 
@@ -78,62 +79,51 @@ export const Demo = () => {
     agreement: false,
   }), []);
   const classes = useStyles();
-  const validate: ValidateFunction<typeof initialValues> = React.useCallback(async (values, meta, submit) => {
-    const errors: Errors<typeof values> = {};
-    if (meta.userName.change || meta.userName.blur || submit) {
-      if (meta.userName.change) {
-        setNameStatus(CheckingStatus.Unchecked);
-      }
-      if (!values.userName) {
-        throw new FieldValidateError('userName', '用户名是必须的');
-      }
-      if (nameStatus === CheckingStatus.Unchecked && (meta.userName.blur || submit)) {
-        setNameStatus(CheckingStatus.Checking);
-        await sleep(1000);
-        if (values.userName !== 'vipcxj') {
-          setNameStatus(CheckingStatus.Invalid);
-          throw new FieldValidateError('userName', '用户名已被使用');
+  const validate = React.useMemo(() => createValidator<typeof initialValues>({
+    userName: [
+      string().required('用户名是必须的').trimmed('两边不能有空格'),
+      {
+        triggers: 'blur',
+        validate: async (value) => {
+          setNameStatus(CheckingStatus.Checking);
+          await sleep(1000);
+          if (value !== 'vipcxj') {
+            setNameStatus(CheckingStatus.Invalid);
+            throw '用户名已被使用';
+          }
+          setNameStatus(CheckingStatus.Valid);
         }
-        setNameStatus(CheckingStatus.Valid);
-      }
-    }
-    if (meta.email.change || meta.email.blur || submit) {
-      if (meta.email.change) {
-        setEmailStatus(CheckingStatus.Unchecked);
-      }
-      if (!values.email) {
-        throw new FieldValidateError('email', '电子邮箱是必须的');
-      }
-      if (emailStatus === CheckingStatus.Unchecked && (meta.email.blur || submit)) {
-        setEmailStatus(CheckingStatus.Checking);
-        await sleep(3000);
-        if (values.email !== 'vipcxj@form.com') {
-          setEmailStatus(CheckingStatus.Invalid);
-          throw new FieldValidateError('email', '电子邮箱已被使用');
+      },
+    ],
+    email: [
+      string().required('电子邮箱是必须的').trimmed('两边不能有空格'),
+      {
+        triggers: 'blur',
+        validate: async value => {
+          setEmailStatus(CheckingStatus.Checking);
+          await sleep(3000);
+          if (value !== 'vipcxj@form.com') {
+            setEmailStatus(CheckingStatus.Invalid);
+            throw '电子邮箱已被使用';
+          }
+          setEmailStatus(CheckingStatus.Valid);
         }
-        setEmailStatus(CheckingStatus.Valid);
+      },
+    ],
+    password: string()
+      .required('密码是必须的')
+      .sameWithWhenExists('conformedPassword', '两次输入的密码必须相同')
+      .composedOf('必须由大小写字母, 数字和键盘特殊符号组成', /[a-z]+/i, /\d+/, REG_SPECIAL)
+      .matches('密码必须包含大写字母或键盘特殊符号', /[A-Z]+/, REG_SPECIAL)
+      .min(6, '密码长度必须大于等于6')
+      .max(24, '密码长度必须小于等于24'),
+    conformedPassword: string('必须是字符串').sameWithWhenExists('password', '两次输入的密码必须相同'),
+    agreement: value => {
+      if (!value) {
+        throw '必须同意网站条款';
       }
-    }
-    if (meta.password.change || meta.password.blur || submit) {
-      if (!values.password) {
-        throw new FieldValidateError('password', '密码是必须的');
-      }
-    }
-    if (meta.conformedPassword.change || meta.password.blur || submit) {
-      if (!values.conformedPassword) {
-        throw new FieldValidateError('conformedPassword', '必须重复一遍密码');
-      }
-      if (values.conformedPassword !== values.password) {
-        throw new FieldValidateError('conformedPassword', '与第一次输入的密码不同');
-      }
-    }
-    if (meta.agreement.change || meta.agreement.blur || submit) {
-      if (!values.agreement) {
-        throw new FieldValidateError('agreement', '必须同意网站条款');
-      }
-    }
-    return errors;
-  }, [nameStatus, emailStatus]);
+    },
+  }), []);
   const onSubmit: OnSubmitFunction<typeof initialValues> = React.useCallback(async () => {
     await sleep(2500);
     alert('提交成功');
@@ -144,7 +134,7 @@ export const Demo = () => {
     onSubmit,
   });
   return (
-      <form className={classes.root} onSubmit={handleSubmit}>
+      <form className={classes.root} onSubmit={handleSubmit} noValidate>
         <Grid container spacing={2}>
           <Grid item xs={12}>
             <TextField

@@ -1,14 +1,16 @@
 import React from 'react';
 
-type Meta<Values extends Record<string, any>> = {
+export type Meta<Values extends Record<string, any>> = {
     [K in keyof Values]: {
         change: boolean;
         blur: boolean;
     };
 }
 
-export type Errors<Values extends Record<string, any>> = {
-    [K in keyof Values]?: undefined | string;
+export type ErrorType = string | typeof Error_False | typeof Error_Keep | typeof Error_Reset;
+
+export type ErrorsResult<Values extends Record<string, any>> = {
+    [K in keyof Values]: ErrorType;
 }
 
 export class FieldValidateError extends Error {
@@ -26,9 +28,9 @@ export class FieldValidateError extends Error {
     }
 }
 
-interface UseFormConfig<Values extends Record<string, any>> {
+export interface UseFormConfig<Values extends Record<string, any>> {
     initialValues: Values;
-    validate: (values: Values, meta: Meta<Values>, submit: boolean) => Errors<Values> | Promise<Errors<Values>>;
+    validate: (values: Values, errors: ErrorsState<Values>, meta: Meta<Values>, submit: boolean) => ErrorsResult<Values> | Promise<ErrorsResult<Values>>;
     onSubmit: (values: Values) => void | Promise<void>;
 }
 
@@ -50,7 +52,7 @@ function mapValues<Values extends Record<string, any>>(
 }
 
 type ErrorState = {
-    error?: boolean;
+    error: boolean | undefined;
     message?: string;
     version: number;
 };
@@ -61,32 +63,35 @@ type ErrorsState<Values extends Record<string, any>> = {
 
 let VERSION = 0;
 
-function mergeError<Values extends Record<string, any>>(states: ErrorsState<Values>, errors: Errors<Values>, meta: Meta<Values>, version: number): ErrorsState<Values> {
+export const Error_False = false;
+export const Error_Keep = { keep: true };
+export const Error_Reset = { reset: true };
+
+function mergeError<Values extends Record<string, any>>(states: ErrorsState<Values>, errors: ErrorsResult<Values>, meta: Meta<Values>, version: number): ErrorsState<Values> {
     let change = false;
     const newStates = {...states};
     for (const key of Object.keys(states)) {
         const newState = newStates[key];
         if (version >= newState.version) {
-            if (key in errors) {
-                if ((errors[key] ?? undefined) === undefined) {
-                    newStates[key as keyof Values] = {
-                        error: false,
-                        message: undefined,
-                        version,
-                    };
-                    change = true;
-                } else {
-                    newStates[key as keyof Values] = {
-                        error: true,
-                        message: errors[key],
-                        version,
-                    };
-                    change = true;
-                }
-            } else if (meta[key].change) {
+            const error = errors[key];
+            if (error === Error_Reset) {
+                newStates[key as keyof Values] = {
+                    error: undefined,
+                    message: undefined,
+                    version,
+                };
+                change = true;
+            } else if (error === Error_False) {
                 newStates[key as keyof Values] = {
                     error: false,
                     message: undefined,
+                    version,
+                };
+                change = true;
+            } else if (typeof error === 'string') {
+                newStates[key as keyof Values] = {
+                    error: true,
+                    message: error,
                     version,
                 };
                 change = true;
@@ -98,16 +103,158 @@ function mergeError<Values extends Record<string, any>>(states: ErrorsState<Valu
 
 function hasError<Values extends Record<string, any>>(
   errors: ErrorsState<Values>,
-  errorsPatch: Errors<Values>, globalError: string | undefined | null,
+  errorsPatch: ErrorsResult<Values> | null, globalError: string | undefined | null,
   meta: Meta<Values>, version: number,
 ) {
-    const newErrors = mergeError(errors, errorsPatch, meta, version);
+    const newErrors = errorsPatch ? mergeError(errors, errorsPatch, meta, version) : {};
     return Object.keys(newErrors).some(key => newErrors[key].error) || typeof globalError === 'string';
 }
 
-interface HandleChange {
+export interface HandleChange {
     (value: any): void;
     checked: (value: any) => void;
+}
+
+export type FieldFunctionValidator<Values extends Record<string, any>, Field extends keyof Values> = (
+  value: Values[Field],
+  error: ErrorsState<Values>[Field],
+  values: Values,
+  errors: ErrorsState<Values>,
+  trigger: Trigger,
+) => void | Promise<void>;
+
+export type TriggerOption = 'change' | 'blur' | 'blur!' | 'submit' | 'submit!';
+export const DEFAULT_TRIGGER_OPTIONS: TriggerOption[] = ['change', 'blur'];
+type Trigger = 'change' | 'blur' | 'submit';
+
+export type FieldObjectValidator<Values extends Record<string, any>, Field extends keyof Values> = {
+    triggers: TriggerOption | Array<TriggerOption>;
+    validate: FieldFunctionValidator<Values, Field>;
+};
+
+export type FieldArrayValidator<Values extends Record<string, any>, Field extends keyof Values> = Array<FieldFunctionValidator<Values, Field> | FieldObjectValidator<Values, Field>>;
+
+export type FieldValidators<Values extends Record<string, any>> = {
+    [field in keyof Values]?: FieldFunctionValidator<Values, field> | FieldObjectValidator<Values, field> | Array<FieldFunctionValidator<Values, field> | FieldObjectValidator<Values, field>>;
+}
+
+function extractTrigger<Values extends Record<string, any>>(field: keyof Values, meta: Meta<Values>, submit: boolean): Trigger | null {
+    const m = meta[field];
+    if (m.change) return 'change';
+    if (m.blur) return 'blur';
+    if (submit) return 'submit';
+    return null;
+}
+
+export function isFunctionValidator<Values extends Record<string, any>, Field extends keyof Values>(
+  processor: FieldValidators<Values>[Field]
+): processor is FieldFunctionValidator<Values, Field> {
+    return processor && !Array.isArray(processor) && typeof processor === 'function';
+}
+
+export function isObjectValidator<Values extends Record<string, any>, Field extends keyof Values>(
+  processor: FieldValidators<Values>[Field]
+): processor is FieldObjectValidator<Values, Field> {
+    return processor && !Array.isArray(processor) && typeof processor !== 'function';
+}
+
+export function isArrayValidator<Values extends Record<string, any>, Field extends keyof Values>(
+  processor: FieldValidators<Values>[Field]
+): processor is FieldArrayValidator<Values, Field> {
+    return processor && Array.isArray(processor);
+}
+
+enum TriggerMatch {
+    FullMatch,
+    OptionMatch,
+    NotMatch,
+}
+
+function checkTriggers(triggers: TriggerOption | Array<TriggerOption>, trigger: Trigger, extraTriggers?: TriggerOption | Array<TriggerOption>): TriggerMatch {
+    if (typeof triggers === 'string') {
+        if (trigger === triggers) return trigger === 'change' ? TriggerMatch.FullMatch : TriggerMatch.OptionMatch;
+        if (trigger + '!' === triggers) return TriggerMatch.FullMatch;
+    } else {
+        if (triggers.indexOf((trigger + '!') as TriggerOption) !== -1) {
+            return TriggerMatch.FullMatch;
+        } else if (triggers.indexOf(trigger as TriggerOption) !== -1) {
+            return trigger === 'change' ? TriggerMatch.FullMatch : TriggerMatch.OptionMatch;
+        }
+    }
+    if (extraTriggers) {
+        return checkTriggers(extraTriggers, trigger);
+    } else {
+        return TriggerMatch.NotMatch;
+    }
+}
+
+async function processFieldValidator<Values extends Record<string, any>, Field extends keyof Values>(
+  errorsOut: ErrorsResult<Values>,
+  values: Values, errors: ErrorsState<Values>,
+  field: Field,
+  trigger: Trigger,
+  processor: FieldValidators<Values>[Field],
+) {
+    if (isFunctionValidator(processor) || isObjectValidator(processor)) {
+        let triggers: TriggerOption | TriggerOption[];
+        let validate: FieldFunctionValidator<Values, Field>;
+        if (isFunctionValidator(processor)) {
+            triggers = DEFAULT_TRIGGER_OPTIONS;
+            validate = processor;
+        } else {
+            triggers = processor.triggers;
+            validate = processor.validate;
+        }
+        const match = checkTriggers(triggers, trigger, 'submit');
+        if (match === TriggerMatch.NotMatch) {
+            return;
+        }
+        if (match === TriggerMatch.FullMatch || errors[field].error === undefined) {
+            await validate(values[field], errors[field], values, errors, trigger);
+            if (errorsOut[field] !== Error_Reset) {
+                errorsOut[field] = trigger === 'change' ? Error_Reset : Error_False;
+            }
+        }
+    } else if (isArrayValidator(processor)) {
+        for (const subProcessor of processor) {
+            await processFieldValidator(errorsOut, values, errors, field, trigger, subProcessor);
+        }
+    }
+}
+
+export function createValidator<Values extends Record<string, any>>(processors: FieldValidators<Values>): ValidateFunction<Values> {
+    return async (values: Values, errors: ErrorsState<Values>, meta: Meta<Values>, submit: boolean) => {
+        const errorsOut: ErrorsResult<Values> = createKeepErrors(errors);
+        const fields: Array<keyof Values> = Object.keys(processors);
+        for (const field of fields) {
+            if (meta[field].change || meta[field].blur || submit) {
+                try {
+                    const trigger = extractTrigger(field, meta, submit)!;
+                    const processor = processors[field];
+                    await processFieldValidator(errorsOut, values, errors, field, trigger, processor);
+                } catch (e) {
+                    if (e instanceof FieldValidateError) {
+                        errorsOut[e.field as keyof Values] = typeof e === 'string' ? e : `${e.message || ''}`;
+                    } else {
+                        errorsOut[field] = typeof e === 'string' ? e : `${e.message || ''}`;
+                    }
+                }
+            }
+        }
+        return errorsOut;
+    }
+}
+
+export function createKeepErrors<Values extends Record<string, any>>(errorsState: ErrorsState<Values>): ErrorsResult<Values> {
+    return mapValues(errorsState, _ => Error_Keep);
+}
+
+export function createNoErrors<Values extends Record<string, any>>(errorsState: ErrorsState<Values>): ErrorsResult<Values> {
+    return mapValues(errorsState, _ => Error_False);
+}
+
+export function createResetErrors<Values extends Record<string, any>>(errorsState: ErrorsState<Values>): ErrorsResult<Values> {
+    return mapValues(errorsState, _ => Error_Reset);
 }
 
 export const useForm = <Values extends Record<string, any>> ({ initialValues, validate, onSubmit }: UseFormConfig<Values>) => {
@@ -159,35 +306,38 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
      */
     const execValidate = React.useCallback(async (values: Values, meta: Meta<Values>, submit: boolean) => {
         const version = ++VERSION;
-        let errorsPatch: Errors<Values> = {};
-        let globalError : string | undefined | null = undefined;
+        let errorsPatch: ErrorsResult<Values> | null = null;
+        let globalError : string | undefined | null = null;
         try {
             setValidatingState(prevState => ([...prevState, version]));
-            errorsPatch = await validate(values, meta, submit);
+            const errorsOut = await validate(values, errors, meta, submit);
             if (!unmountRef.current) {
                 setErrors(preErrors => {
-                    return mergeError(preErrors, errorsPatch, meta, version);
+                    return mergeError(preErrors, errorsOut, meta, version);
                 });
             }
+            errorsPatch = errorsOut;
         } catch (e) {
             if (!unmountRef.current) {
                 if (e instanceof FieldValidateError) {
-                    errorsPatch = {
-                        [((e as FieldValidateError).field)]: `${e.message || ''}`,
-                    } as Errors<Values>;
+                    const errorsOut = createKeepErrors(errors);
+                    errorsOut[(e.field) as keyof Values] = `${e.message || ''}`;
                     setErrors(preErrors => {
-                        return mergeError(preErrors, errorsPatch, meta, version);
+                        return mergeError(preErrors, errorsOut, meta, version);
                     });
+                    errorsPatch = errorsOut;
                 } else {
                     const uncatchedError = typeof e === 'string' ? e : (`${e.message}` || '');
                     const fields = Object.keys(meta).filter(key => meta[key].change || meta[key].blur);
                     if (fields.length > 0) {
+                        const errorsOut = errorsPatch = createKeepErrors(errors);
                         for (const field of fields) {
                             errorsPatch[field as keyof Values] = uncatchedError;
                         }
                         setErrors(preErrors => {
-                            return mergeError(preErrors, errorsPatch, meta, version);
+                            return mergeError(preErrors, errorsOut, meta, version);
                         });
+                        errorsPatch = errorsOut;
                     } else {
                         globalError = uncatchedError;
                         const error: ErrorState = {
@@ -218,7 +368,7 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
             });
         }
         return [errorsPatch, globalError, version] as const;
-    }, [setValidatingState, validate, setErrors, setGlobalErrors]);
+    }, [setValidatingState, validate, errors, setErrors, setGlobalErrors]);
     const handleChanges: Record<keyof Values, HandleChange> = React.useMemo(() => mapValues(
         initialValues,
         key => {
@@ -250,8 +400,9 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
         initialValues,
         key => {
             const meta = mapValues(initialValues, k => ({ change: false, blur: k === key }));
-            return () => {
+            return (evt: React.SyntheticEvent) => {
                 if (submitting) return;
+                evt.preventDefault();
                 // noinspection JSIgnoredPromiseFromCall
                 execValidate(values, meta, false);
             };
