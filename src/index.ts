@@ -160,7 +160,7 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
     const execValidate = React.useCallback(async (values: Values, meta: Meta<Values>, submit: boolean) => {
         const version = ++VERSION;
         let errorsPatch: Errors<Values> = {};
-        let globalErrorsPatch : string | undefined | null = undefined;
+        let globalError : string | undefined | null = undefined;
         try {
             setValidatingState(prevState => ([...prevState, version]));
             errorsPatch = await validate(values, meta, submit);
@@ -179,19 +179,30 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
                         return mergeError(preErrors, errorsPatch, meta, version);
                     });
                 } else {
-                    globalErrorsPatch = typeof e === 'string' ? e : (e.message || '');
-                    const error: ErrorState = {
-                        error: true,
-                        message: typeof e === 'string' ? e : (e.message || ''),
-                        version,
-                    }
-                    setGlobalErrors(prevError => {
-                        if (version >= prevError.version) {
-                            return error;
-                        } else {
-                            return prevError;
+                    const uncatchedError = typeof e === 'string' ? e : (`${e.message}` || '');
+                    const fields = Object.keys(meta).filter(key => meta[key].change || meta[key].blur);
+                    if (fields.length > 0) {
+                        for (const field of fields) {
+                            errorsPatch[field as keyof Values] = uncatchedError;
                         }
-                    });
+                        setErrors(preErrors => {
+                            return mergeError(preErrors, errorsPatch, meta, version);
+                        });
+                    } else {
+                        globalError = uncatchedError;
+                        const error: ErrorState = {
+                            error: true,
+                            message: globalError,
+                            version,
+                        }
+                        setGlobalErrors(prevError => {
+                            if (version >= prevError.version) {
+                                return error;
+                            } else {
+                                return prevError;
+                            }
+                        });
+                    }
                 }
             }
         } finally {
@@ -206,7 +217,7 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
                 }
             });
         }
-        return [errorsPatch, globalErrorsPatch, version] as const;
+        return [errorsPatch, globalError, version] as const;
     }, [setValidatingState, validate, setErrors, setGlobalErrors]);
     const handleChanges: Record<keyof Values, HandleChange> = React.useMemo(() => mapValues(
         initialValues,
