@@ -1,6 +1,6 @@
 {
   "name": "powerful-form-hook",
-  "version": "1.0.3",
+  "version": "2.0.0-0",
   "description": "a hook to help create form in react",
   "main": "dist/index.js",
   "module": "dist/esm/index.js",
