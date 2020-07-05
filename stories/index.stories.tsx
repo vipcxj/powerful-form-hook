@@ -6,7 +6,7 @@ import {
   TextField} from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import * as React from 'react';
-import { createValidator, useForm, OnSubmitFunction, REG_SPECIAL, string } from '../src';
+import { createValidator, useForm, OnSubmitFunction, REG_SPECIAL, string, sameWithWhenExists } from '../src';
 
 export default { title: 'useForm' };
 
@@ -105,14 +105,31 @@ export const Demo = () => {
         }
       },
     ],
-    password: string()
-      .required('密码是必须的')
-      .sameWithWhenExists('conformedPassword', '两次输入的密码必须相同')
-      .composedOf('必须由大小写字母, 数字和键盘特殊符号组成', /[a-z]+/i, /\d+/, REG_SPECIAL)
-      .matchSomeOf('密码必须包含大写字母或键盘特殊符号', /[A-Z]+/, REG_SPECIAL)
-      .min(6, '密码长度必须大于等于6')
-      .max(24, '密码长度必须小于等于24'),
-    conformedPassword: string('必须是字符串').sameWithWhenExists('password', '两次输入的密码必须相同'),
+    password: [
+      string()
+        .required('密码是必须的')
+        .composedOf('必须由大小写字母, 数字和键盘特殊符号组成', /[a-z]+/i, /\d+/, REG_SPECIAL)
+        .matchSomeOf('密码必须包含大写字母或键盘特殊符号', /[A-Z]+/, REG_SPECIAL)
+        .min(6, '密码长度必须大于等于6')
+        .max(24, '密码长度必须小于等于24'),
+      {
+        triggers: {
+          trigger: 'blur',
+          fields: ['conformedPassword'],
+        },
+        validate: sameWithWhenExists('conformedPassword', '两次输入的密码必须相同'),
+      },
+    ],
+    conformedPassword: [
+      string('必须是字符串'),
+      {
+        triggers: {
+          trigger: 'blur',
+          fields: ['password'],
+        },
+        validate: sameWithWhenExists('password', '两次输入的密码必须相同'),
+      },
+    ],
     agreement: value => {
       if (!value) {
         throw '必须同意网站条款';

@@ -1,4 +1,4 @@
-import type { FieldFunctionValidator } from './index';
+import type { FieldFunctionValidator } from './core';
 
 export function sequence<Values extends Record<string, any>, Field extends keyof Values>
 (

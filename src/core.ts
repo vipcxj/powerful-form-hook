@@ -123,8 +123,20 @@ export type FieldFunctionValidator<Values extends Record<string, any>, Field ext
   trigger: Trigger,
 ) => void | Promise<void>;
 
-export type TriggerOption = 'change' | 'blur' | 'blur!' | 'submit' | 'submit!';
-export const DEFAULT_TRIGGER_OPTIONS: TriggerOption[] = ['change', 'blur'];
+export type TriggerSimpleOption = 'change' | 'blur' | 'blur!' | 'submit' | 'submit!';
+export type TriggerObjectOption = {
+    trigger: TriggerSimpleOption;
+    fields?: string[];
+};
+export type TriggerOption = TriggerSimpleOption | TriggerObjectOption;
+export type TriggersOption = TriggerOption | TriggerOption[];
+function isTriggerSimpleOption(option: TriggersOption): option is TriggerSimpleOption {
+    return typeof option === 'string';
+}
+function isTriggerObjectOption(option: TriggersOption): option is TriggerObjectOption {
+    return !Array.isArray(option) && !isTriggerSimpleOption(option);
+}
+export const DEFAULT_TRIGGER_OPTIONS: TriggerSimpleOption[] = ['change', 'blur'];
 type Trigger = 'change' | 'blur' | 'submit';
 
 export type FieldObjectValidator<Values extends Record<string, any>, Field extends keyof Values> = {
@@ -170,19 +182,29 @@ enum TriggerMatch {
     NotMatch,
 }
 
-function checkTriggers(triggers: TriggerOption | Array<TriggerOption>, trigger: Trigger, extraTriggers?: TriggerOption | Array<TriggerOption>): TriggerMatch {
-    if (typeof triggers === 'string') {
-        if (trigger === triggers) return trigger === 'change' ? TriggerMatch.FullMatch : TriggerMatch.OptionMatch;
-        if (trigger + '!' === triggers) return TriggerMatch.FullMatch;
+function checkTriggers(triggers: TriggerOption | Array<TriggerOption>, trigger: Trigger, ownerField: string, triggerField: string, extraTriggers?: TriggerOption | Array<TriggerOption>): TriggerMatch {
+    if (isTriggerSimpleOption(triggers)) {
+        if (trigger === triggers && ownerField === triggerField) return trigger === 'change' ? TriggerMatch.FullMatch : TriggerMatch.OptionMatch;
+        if (trigger + '!' === triggers && ownerField === triggerField) return TriggerMatch.FullMatch;
+    } else if (isTriggerObjectOption(triggers)) {
+        const { trigger: triggerOpt, fields = [] } = triggers;
+        if (trigger === triggerOpt && (ownerField === triggerField || fields.indexOf(triggerField) !== -1)) return trigger === 'change' ? TriggerMatch.FullMatch : TriggerMatch.OptionMatch;
+        if (trigger + '!' === triggerOpt && (ownerField === triggerField || fields.indexOf(triggerField) !== -1)) return TriggerMatch.FullMatch;
     } else {
-        if (triggers.indexOf((trigger + '!') as TriggerOption) !== -1) {
-            return TriggerMatch.FullMatch;
-        } else if (triggers.indexOf(trigger as TriggerOption) !== -1) {
-            return trigger === 'change' ? TriggerMatch.FullMatch : TriggerMatch.OptionMatch;
+        let optionMatch = false;
+        for (const triggerOpt of triggers) {
+            const match = checkTriggers(triggerOpt, trigger, ownerField, triggerField, extraTriggers);
+            if (match === TriggerMatch.FullMatch) {
+                return match;
+            }
+            if (match === TriggerMatch.OptionMatch) {
+                optionMatch = true;
+            }
         }
+        return optionMatch ? TriggerMatch.OptionMatch : TriggerMatch.NotMatch;
     }
     if (extraTriggers) {
-        return checkTriggers(extraTriggers, trigger);
+        return checkTriggers(extraTriggers, trigger, ownerField, triggerField);
     } else {
         return TriggerMatch.NotMatch;
     }
@@ -191,12 +213,13 @@ function checkTriggers(triggers: TriggerOption | Array<TriggerOption>, trigger: 
 async function processFieldValidator<Values extends Record<string, any>, Field extends keyof Values>(
   errorsOut: ErrorsResult<Values>,
   values: Values, errors: ErrorsState<Values>,
-  field: Field,
-  trigger: Trigger,
   processor: FieldValidators<Values>[Field],
+  processorField: Field,
+  trigger: Trigger,
+  triggerField: Field,
 ) {
     if (isFunctionValidator(processor) || isObjectValidator(processor)) {
-        let triggers: TriggerOption | TriggerOption[];
+        let triggers: TriggersOption;
         let validate: FieldFunctionValidator<Values, Field>;
         if (isFunctionValidator(processor)) {
             triggers = DEFAULT_TRIGGER_OPTIONS;
@@ -205,19 +228,19 @@ async function processFieldValidator<Values extends Record<string, any>, Field e
             triggers = processor.triggers;
             validate = processor.validate;
         }
-        const match = checkTriggers(triggers, trigger, 'submit');
+        const match = checkTriggers(triggers, trigger, processorField as string, triggerField as string, 'submit');
         if (match === TriggerMatch.NotMatch) {
             return;
         }
-        if (match === TriggerMatch.FullMatch || errors[field].error === undefined) {
-            await validate(values[field], errors[field], values, errors, trigger);
-            if (errorsOut[field] !== Error_Reset) {
-                errorsOut[field] = trigger === 'change' ? Error_Reset : Error_False;
+        if (match === TriggerMatch.FullMatch || errors[processorField].error === undefined) {
+            await validate(values[processorField], errors[processorField], values, errors, trigger);
+            if (errorsOut[processorField] !== Error_Reset) {
+                errorsOut[processorField] = trigger === 'change' ? Error_Reset : Error_False;
             }
         }
     } else if (isArrayValidator(processor)) {
         for (const subProcessor of processor) {
-            await processFieldValidator(errorsOut, values, errors, field, trigger, subProcessor);
+            await processFieldValidator(errorsOut, values, errors, subProcessor, processorField, trigger, triggerField);
         }
     }
 }
@@ -228,17 +251,20 @@ export function createValidator<Values extends Record<string, any>>(processors: 
         const fields: Array<keyof Values> = Object.keys(processors);
         for (const field of fields) {
             if (meta[field].change || meta[field].blur || submit) {
-                try {
-                    const trigger = extractTrigger(field, meta, submit)!;
-                    const processor = processors[field];
-                    await processFieldValidator(errorsOut, values, errors, field, trigger, processor);
-                } catch (e) {
-                    if (e instanceof FieldValidateError) {
-                        errorsOut[e.field as keyof Values] = typeof e === 'string' ? e : `${e.message || ''}`;
-                    } else {
-                        errorsOut[field] = typeof e === 'string' ? e : `${e.message || ''}`;
+                const trigger = extractTrigger(field, meta, submit)!;
+                const tasks = fields.map(async (processorField) => {
+                    try {
+                        const processor = processors[processorField];
+                        await processFieldValidator(errorsOut, values, errors, processor, processorField, trigger, field);
+                    } catch (e) {
+                        if (e instanceof FieldValidateError) {
+                            errorsOut[e.field as keyof Values] = typeof e === 'string' ? e : `${e.message || ''}`;
+                        } else {
+                            errorsOut[processorField] = typeof e === 'string' ? e : `${e.message || ''}`;
+                        }
                     }
-                }
+                })
+                await Promise.all(tasks);
             }
         }
         return errorsOut;
