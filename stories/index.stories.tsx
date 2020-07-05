@@ -6,8 +6,7 @@ import {
   TextField} from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import * as React from 'react';
-import { createValidator, useForm, OnSubmitFunction } from '../src';
-import { REG_SPECIAL, string } from '../src/validate';
+import { createValidator, useForm, OnSubmitFunction, REG_SPECIAL, string } from '../src';
 
 export default { title: 'useForm' };
 
@@ -31,7 +30,7 @@ enum CheckingStatus {
   Invalid,
 }
 
-function createCheckStatusAdornment(classes: ReturnType<typeof useStyles>, status: CheckingStatus) {
+function createCheckStatusAdornment(status: CheckingStatus) {
   switch (status) {
     case CheckingStatus.Unchecked:
       return {};
@@ -64,13 +63,9 @@ function createCheckStatusAdornment(classes: ReturnType<typeof useStyles>, statu
 
 export const Demo = () => {
   const [nameStatus, setNameStatus] = React.useState(CheckingStatus.Unchecked);
-  const nameAdornment = React.useMemo(() => createCheckStatusAdornment(
-    classes, nameStatus,
-  ), [nameStatus]);
+  const nameAdornment = React.useMemo(() => createCheckStatusAdornment(nameStatus), [nameStatus]);
   const [emailStatus, setEmailStatus] = React.useState(CheckingStatus.Unchecked);
-  const emailAdornment = React.useMemo(() => createCheckStatusAdornment(
-    classes, emailStatus,
-  ), [emailStatus]);
+  const emailAdornment = React.useMemo(() => createCheckStatusAdornment(emailStatus), [emailStatus]);
   const initialValues = React.useMemo(() => ({
     userName: '',
     email: '',
@@ -114,7 +109,7 @@ export const Demo = () => {
       .required('密码是必须的')
       .sameWithWhenExists('conformedPassword', '两次输入的密码必须相同')
       .composedOf('必须由大小写字母, 数字和键盘特殊符号组成', /[a-z]+/i, /\d+/, REG_SPECIAL)
-      .matches('密码必须包含大写字母或键盘特殊符号', /[A-Z]+/, REG_SPECIAL)
+      .matchSomeOf('密码必须包含大写字母或键盘特殊符号', /[A-Z]+/, REG_SPECIAL)
       .min(6, '密码长度必须大于等于6')
       .max(24, '密码长度必须小于等于24'),
     conformedPassword: string('必须是字符串').sameWithWhenExists('password', '两次输入的密码必须相同'),
