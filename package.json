@@ -2,6 +2,11 @@
   "name": "powerful-form-hook",
   "version": "2.0.2",
   "description": "a hook to help create form in react",
+  "homepage": "https://vipcxj.github.io/powerful-form-hook",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vipcxj/powerful-form-hook.git"
+  },
   "main": "dist/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/index.d.ts",
@@ -22,7 +27,10 @@
     "hook",
     "react"
   ],
-  "author": "vipcxj",
+  "author": "Xiaojing Chen <vipcxj@126.com> (https://github.com/vipcxj)",
+  "bugs": {
+    "url": "https://github.com/vipcxj/react-themed-styles/issues"
+  },
   "license": "MIT",
   "sideEffects": true,
   "devDependencies": {

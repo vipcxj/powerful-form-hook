@@ -148,9 +148,10 @@ export const Demo = () => {
         .min(6, '密码长度必须大于等于6')
         .max(24, '密码长度必须小于等于24'),
 	  // the validate task will trigger by blur of itself and conformedPassword field.
+	  // the `!` after blur means the validator will be triggered even when the field has not be changed.
       {
         triggers: {
-          trigger: 'blur',
+          trigger: 'blur!',
           fields: ['conformedPassword'],
         },
         validate: sameWithWhenExists('conformedPassword', '两次输入的密码必须相同'),
@@ -159,9 +160,10 @@ export const Demo = () => {
     conformedPassword: [
       string('必须是字符串'),
 	  // the validate task will trigger by blur of itself and password field.
+	  // the `!` after blur means the validator will be triggered even when the field has not be changed.
       {
         triggers: {
-          trigger: 'blur',
+          trigger: 'blur!',
           fields: ['password'],
         },
         validate: sameWithWhenExists('password', '两次输入的密码必须相同'),
