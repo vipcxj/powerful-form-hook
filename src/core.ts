@@ -284,8 +284,9 @@ export function createResetErrors<Values extends Record<string, any>>(errorsStat
 }
 
 export const useForm = <Values extends Record<string, any>> ({ initialValues, validate, onSubmit }: UseFormConfig<Values>) => {
-    const [values, setValues] = React.useState(initialValues);
-    const [errors, setErrors] = React.useState<ErrorsState<Values>>(() => mapValues(initialValues, _ => {
+    const [fixedInitialValues] = React.useState(initialValues);
+    const [values, setValues] = React.useState(fixedInitialValues);
+    const [errors, setErrors] = React.useState<ErrorsState<Values>>(() => mapValues(fixedInitialValues, _ => {
         const version = ++VERSION;
         return {
             error: undefined,
@@ -396,9 +397,9 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
         return [errorsPatch, globalError, version] as const;
     }, [setValidatingState, validate, errors, setErrors, setGlobalErrors]);
     const handleChanges: Record<keyof Values, HandleChange> = React.useMemo(() => mapValues(
-        initialValues,
+      fixedInitialValues,
         key => {
-            const meta = mapValues(initialValues, k => ({ change: k === key, blur: false }));
+            const meta = mapValues(fixedInitialValues, k => ({ change: k === key, blur: false }));
             const handleChange = (value: any): void => {
                 if (submitting) return;
                 let target = value;
@@ -423,9 +424,9 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
         },
     ), [submitting, execValidate]);
     const handleBlurs: Record<keyof Values, () => void> = React.useMemo(() => mapValues(
-        initialValues,
+      fixedInitialValues,
         key => {
-            const meta = mapValues(initialValues, k => ({ change: false, blur: k === key }));
+            const meta = mapValues(fixedInitialValues, k => ({ change: false, blur: k === key }));
             return (evt: React.SyntheticEvent) => {
                 if (submitting) return;
                 evt.preventDefault();
@@ -439,7 +440,7 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
         if (validating || submitting) return;
         setSubmitting(true);
         try {
-            const meta = mapValues(initialValues, _ => ({ change: false, blur: false }));
+            const meta = mapValues(fixedInitialValues, _ => ({ change: false, blur: false }));
             const [errorsPatch, newGlobalError, version] = await execValidate(values, meta, true);
             if (!hasError(errors, errorsPatch, newGlobalError, version) && !unmountRef.current) {
                 await onSubmit(values);
