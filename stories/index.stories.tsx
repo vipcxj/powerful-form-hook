@@ -114,7 +114,7 @@ export const Demo = () => {
         .max(24, '密码长度必须小于等于24'),
       {
         triggers: {
-          trigger: 'blur',
+          trigger: 'blur!',
           fields: ['conformedPassword'],
         },
         validate: sameWithWhenExists('conformedPassword', '两次输入的密码必须相同'),
@@ -124,7 +124,7 @@ export const Demo = () => {
       string('必须是字符串'),
       {
         triggers: {
-          trigger: 'blur',
+          trigger: 'blur!',
           fields: ['password'],
         },
         validate: sameWithWhenExists('password', '两次输入的密码必须相同'),
