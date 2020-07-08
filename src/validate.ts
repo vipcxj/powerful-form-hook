@@ -1,4 +1,4 @@
-import type { FieldFunctionValidator } from './core';
+import type { ErrorState, FieldFunctionValidator } from './core';
 
 export function sequence<Values extends Record<string, any>, Field extends keyof Values>
 (
@@ -23,16 +23,16 @@ export function parallel<Values extends Record<string, any>, Field extends keyof
 
 type OptionString = string | undefined | null;
 
-export function required(message: string = 'Required') {
-  return (value: OptionString) => {
+export function required(message = 'Required') {
+  return (value: OptionString): void => {
     if (!value) {
       throw message;
     }
   }
 }
 
-export function trimmed(message: string = 'Must be Trimmed') {
-  return (value: OptionString) => {
+export function trimmed(message = 'Must be Trimmed') {
+  return (value: OptionString): void => {
     if (value && value.trim() !== value) {
       throw message;
     }
@@ -40,7 +40,7 @@ export function trimmed(message: string = 'Must be Trimmed') {
 }
 
 export function sameWith<Values extends Record<string, any>>(field: keyof Values, message?: string) {
-  return (value: OptionString, _: any, values: Values) => {
+  return (value: OptionString, _: ErrorState, values: Values): void => {
     if ((!value && !values[field]) || value !== values[field]) {
       throw message || `Should same with ${field}`;
     }
@@ -48,17 +48,17 @@ export function sameWith<Values extends Record<string, any>>(field: keyof Values
 }
 
 export function sameWithWhenExists<Values extends Record<string, any>>(field: keyof Values, message?: string) {
-  return (value: OptionString, _: any, values: Values) => {
+  return (value: OptionString, _: ErrorState, values: Values): void => {
     if (values[field] && value !== values[field]) {
       throw message || `Should same with ${field}`;
     }
   }
 }
 
-export const REG_EMAIL = /^((([a-z]|\d|[!#$%&'*+\-\/=?^_`{|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#$%&'*+\-\/=?^_`{|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)(((([\x20\x09])*(\x0d\x0a))?([\x20\x09])+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*((([\x20\x09])*(\x0d\x0a))?([\x20\x09])+)?(\x22)))@((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))$/i;
-export const REG_SPECIAL = /[`~!@#$%^&*()-_=+\[\]{}\\|;:'",<.>\/?]+/;
-export function isEmail(message: string = 'Invalid email') {
-  return (value: OptionString) => {
+export const REG_EMAIL = /^((([a-z]|\d|[!#$%&'*+\-/=?^_`{|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#$%&'*+\-/=?^_`{|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)(((([\x20\x09])*(\x0d\x0a))?([\x20\x09])+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*((([\x20\x09])*(\x0d\x0a))?([\x20\x09])+)?(\x22)))@((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))$/i;
+export const REG_SPECIAL = /[`~!@#$%^&*()-_=+[\]{}\\|;:'",<.>/?]+/;
+export function isEmail(message = 'Invalid email') {
+  return (value: OptionString): void => {
     if (value && !REG_EMAIL.test(value)) {
       throw message;
     }
@@ -80,9 +80,9 @@ function globalRegExp(input: RegExp) {
   return new RegExp(pattern, flags);
 }
 
-export function composedOf(message: string = 'Invalid input', ...parts: RegExp[]) {
+export function composedOf(message = 'Invalid input', ...parts: RegExp[]): (value: OptionString) => void {
   const copyParts: RegExp[] = parts.map(part => globalRegExp(part));
-  return (value: OptionString) => {
+  return (value: OptionString): void => {
     if (value) {
       let strValue = value;
       for (const part of copyParts) {
@@ -96,7 +96,7 @@ export function composedOf(message: string = 'Invalid input', ...parts: RegExp[]
 }
 
 export function matchSomeOf(message?: string, ...parts: RegExp[]) {
-  return (value: OptionString) => {
+  return (value: OptionString): void => {
     if (value) {
       let test = false;
       for (const part of parts) {
@@ -113,7 +113,7 @@ export function matchSomeOf(message?: string, ...parts: RegExp[]) {
 }
 
 export function notMatchSomeOf(message?: string, ...parts: RegExp[]) {
-  return (value: OptionString) => {
+  return (value: OptionString): void => {
     if (value) {
       let test = true;
       for (const part of parts) {
@@ -130,7 +130,7 @@ export function notMatchSomeOf(message?: string, ...parts: RegExp[]) {
 }
 
 export function max(num: number, message?: string) {
-  return (value: OptionString) => {
+  return (value: OptionString): void => {
     if (value && value.length > num) {
       throw message || `Should be shorter or equal than ${num}`;
     }
@@ -138,7 +138,7 @@ export function max(num: number, message?: string) {
 }
 
 export function min(num: number, message?: string) {
-  return (value: OptionString) => {
+  return (value: OptionString): void => {
     if (value && value.length < num) {
       throw message || `Should be longer or equal than ${num}`;
     }
@@ -158,7 +158,7 @@ type StringValidator<Values extends Record<string, any>, Field extends keyof Val
   min: (len: number, message?: string) => StringValidator<Values, Field>;
 }
 
-export function string<Values extends Record<string, any>, Field extends keyof Values>(message?: string) {
+export function string<Values extends Record<string, any>, Field extends keyof Values>(message?: string): StringValidator<Values, Field> {
   const others: FieldFunctionValidator<Values, Field>[] = [];
   const validator: StringValidator<Values, Field> = (value, error, values, errors, trigger) => {
     if (value === undefined || value === null || typeof value !== 'string') {
@@ -221,8 +221,8 @@ type NumberValidator<Values extends Record<string, any>, Field extends keyof Val
 
 type OptionNumber = number | null | undefined;
 
-export function requiredNum(message: string = 'Required') {
-  return (value: OptionNumber) => {
+export function requiredNum(message = 'Required') {
+  return (value: OptionNumber): void => {
     if (typeof value !== 'number') {
       throw message;
     }
@@ -230,7 +230,7 @@ export function requiredNum(message: string = 'Required') {
 }
 
 export function maxNum(num: number, message?: string) {
-  return (value: OptionNumber) => {
+  return (value: OptionNumber): void => {
     if (typeof value === 'number' && value > num) {
       throw message || `Should be less or equal than ${num}`;
     }
@@ -238,30 +238,30 @@ export function maxNum(num: number, message?: string) {
 }
 
 export function minNum(num: number, message?: string) {
-  return (value: OptionNumber) => {
+  return (value: OptionNumber): void => {
     if (typeof value === 'number'  && value < num) {
       throw message || `Should be greater or equal than ${num}`;
     }
   }
 }
 
-export function integer(message: string = 'Should be a integer') {
-  return (value: OptionNumber) => {
+export function integer(message = 'Should be a integer') {
+  return (value: OptionNumber): void => {
     if (typeof value === 'number'  && !Number.isSafeInteger(value)) {
       throw message;
     }
   }
 }
 
-export function notNan(message: string = 'Should not be Nan') {
-  return (value: OptionNumber) => {
+export function notNan(message = 'Should not be Nan') {
+  return (value: OptionNumber): void => {
     if (typeof value === 'number'  && Number.isNaN(value)) {
       throw message;
     }
   }
 }
 
-export function number<Values extends Record<string, any>, Field extends keyof Values>(message: string) {
+export function number<Values extends Record<string, any>, Field extends keyof Values>(message: string): NumberValidator<Values, Field> {
   const others: FieldFunctionValidator<Values, Field>[] = [];
   const validator: NumberValidator<Values, Field> = (value, error, values, errors, trigger) => {
     if (value === undefined || value === null || typeof value !== 'number') {

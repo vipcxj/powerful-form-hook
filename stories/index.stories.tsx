@@ -7,6 +7,7 @@ import {
 import { makeStyles } from '@material-ui/core/styles';
 import * as React from 'react';
 import { createValidator, useForm, OnSubmitFunction, REG_SPECIAL, string, sameWithWhenExists } from '../src';
+import { FunctionComponent } from 'react';
 
 export default { title: 'useForm' };
 
@@ -61,7 +62,7 @@ function createCheckStatusAdornment(status: CheckingStatus) {
   }
 }
 
-export const Demo = () => {
+export const Demo: FunctionComponent = () => {
   const [nameStatus, setNameStatus] = React.useState(CheckingStatus.Unchecked);
   const nameAdornment = React.useMemo(() => createCheckStatusAdornment(nameStatus), [nameStatus]);
   const [emailStatus, setEmailStatus] = React.useState(CheckingStatus.Unchecked);
@@ -135,7 +136,7 @@ export const Demo = () => {
         throw '必须同意网站条款';
       }
     },
-  }), []);
+  }), [initialValues]);
   const onSubmit: OnSubmitFunction<typeof initialValues> = React.useCallback(async () => {
     await sleep(2500);
     alert('提交成功');
@@ -236,7 +237,7 @@ export const Demo = () => {
   );
 };
 
-export const StrictMode = () => {
+export const StrictMode: React.FunctionComponent = () => {
   return (
       <React.StrictMode>
         <Demo/>

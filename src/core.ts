@@ -51,13 +51,13 @@ function mapValues<Values extends Record<string, any>>(
     return result;
 }
 
-type ErrorState = {
+export type ErrorState = {
     error: boolean | undefined;
     message?: string;
     version: number;
 };
 
-type ErrorsState<Values extends Record<string, any>> = {
+export type ErrorsState<Values extends Record<string, any>> = {
     [K in keyof Values]: ErrorState;
 }
 
@@ -272,18 +272,38 @@ export function createValidator<Values extends Record<string, any>>(processors: 
 }
 
 export function createKeepErrors<Values extends Record<string, any>>(errorsState: ErrorsState<Values>): ErrorsResult<Values> {
-    return mapValues(errorsState, _ => Error_Keep);
+    return mapValues(errorsState, () => Error_Keep);
 }
 
 export function createNoErrors<Values extends Record<string, any>>(errorsState: ErrorsState<Values>): ErrorsResult<Values> {
-    return mapValues(errorsState, _ => Error_False);
+    return mapValues(errorsState, () => Error_False);
 }
 
 export function createResetErrors<Values extends Record<string, any>>(errorsState: ErrorsState<Values>): ErrorsResult<Values> {
-    return mapValues(errorsState, _ => Error_Reset);
+    return mapValues(errorsState, () => Error_Reset);
 }
 
-export const useForm = <Values extends Record<string, any>> ({ initialValues, validate, onSubmit }: UseFormConfig<Values>) => {
+export interface UseFormResult<Values extends Record<string, any>> {
+    values: Values,
+    fieldsSetters: {
+        [key in keyof Values]: React.SetStateAction<Values[key]>;
+    },
+    errors: ErrorsState<Values>,
+    globalError: ErrorState,
+    setFieldError: (key: keyof Values, error: React.SetStateAction<string | undefined | null>) => void;
+    setGlobalError: React.Dispatch<React.SetStateAction<string | undefined | null>>;
+    handleChanges: {
+        [key in keyof Values]: ((event: any) => void) & { checked: (event: any) => void; };
+    },
+    handleBlurs: {
+        [key in keyof Values]: (event?: React.SyntheticEvent) => void;
+    },
+    handleSubmit: (event?: React.SyntheticEvent) => void;
+    submitting: boolean,
+    validating: boolean,
+}
+
+export const useForm = <Values extends Record<string, any>> ({ initialValues, validate, onSubmit }: UseFormConfig<Values>): UseFormResult<Values> => {
     const [fixedInitialValues] = React.useState(initialValues);
     const [values, setValues] = React.useState(fixedInitialValues);
     const fieldsSetters = React.useMemo(
@@ -294,9 +314,9 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
               [key]: newValue,
           };
       })),
-      [],
+      [fixedInitialValues],
     );
-    const [errors, setErrors] = React.useState<ErrorsState<Values>>(() => mapValues(fixedInitialValues, _ => {
+    const [errors, setErrors] = React.useState<ErrorsState<Values>>(() => mapValues(fixedInitialValues, () => {
         const version = ++VERSION;
         return {
             error: undefined,
@@ -318,21 +338,27 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
         message: undefined,
         version: ++VERSION,
     }));
-    const setFieldError = React.useCallback((field: keyof Values, error?: string | null) => {
-        setErrors(preErrors => ({
-            ...preErrors,
-            [field]: {
-                error: error !== null && error !== undefined,
-                message: error ?? undefined,
-                version: ++VERSION,
-            },
-        }));
+    const setFieldError = React.useCallback((field: keyof Values, error: React.SetStateAction<string | undefined | null>) => {
+        setErrors(preErrors => {
+            const newError = typeof error === 'function' ? error(preErrors[field].error ? preErrors[field].message : null) : error;
+            return {
+                ...preErrors,
+                [field]: {
+                    error: newError !== null && newError !== undefined,
+                    message: newError ?? undefined,
+                    version: ++VERSION,
+                },
+            };
+        });
     }, []);
-    const setGlobalError = React.useCallback((error?: string | null) => {
-        setGlobalErrors({
-            error: error !== null && error !== undefined,
-            message: error ?? undefined,
-            version: ++VERSION,
+    const setGlobalError = React.useCallback((error?: React.SetStateAction<string | undefined | null>) => {
+        setGlobalErrors(prevErrors => {
+            const newError = typeof error === 'function' ? error(prevErrors.error ? prevErrors.message : null) : error;
+            return {
+                error: newError !== null && newError !== undefined,
+                message: newError ?? undefined,
+                version: ++VERSION,
+            };
         });
     }, []);
 
@@ -432,7 +458,7 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
             }
             return handleChange;
         },
-    ), [submitting, execValidate]);
+    ), [execValidate, fixedInitialValues, submitting]);
     const handleBlurs: Record<keyof Values, () => void> = React.useMemo(() => mapValues(
       fixedInitialValues,
         key => {
@@ -444,13 +470,13 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
                 execValidate(values, meta, false);
             };
         },
-    ), [submitting, values, execValidate]);
+    ), [execValidate, fixedInitialValues, submitting, values]);
     const handleSubmit = React.useCallback(async (evt?: React.SyntheticEvent) => {
         evt && evt.preventDefault && evt.preventDefault();
         if (validating || submitting) return;
         setSubmitting(true);
         try {
-            const meta = mapValues(fixedInitialValues, _ => ({ change: false, blur: false }));
+            const meta = mapValues(fixedInitialValues, () => ({ change: false, blur: false }));
             const [errorsPatch, newGlobalError, version] = await execValidate(values, meta, true);
             if (!hasError(errors, errorsPatch, newGlobalError, version) && !unmountRef.current) {
                 await onSubmit(values);
@@ -458,7 +484,7 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
         } finally {
             setSubmitting(false);
         }
-    }, [validating, submitting, setSubmitting, execValidate, values, onSubmit]);
+    }, [errors, execValidate, fixedInitialValues, onSubmit, submitting, validating, values]);
     return {
         values,
         fieldsSetters,
