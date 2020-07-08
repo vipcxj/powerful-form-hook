@@ -286,6 +286,16 @@ export function createResetErrors<Values extends Record<string, any>>(errorsStat
 export const useForm = <Values extends Record<string, any>> ({ initialValues, validate, onSubmit }: UseFormConfig<Values>) => {
     const [fixedInitialValues] = React.useState(initialValues);
     const [values, setValues] = React.useState(fixedInitialValues);
+    const fieldsSetters = React.useMemo(
+      () => mapValues(fixedInitialValues, key => (value: React.SetStateAction<Values[typeof key]>) => setValues(preValues => {
+          const newValue = typeof value === 'function' ? (value as React.ReducerWithoutAction<Values[typeof key]>)(preValues[key]) : value;
+          return {
+              ...preValues,
+              [key]: newValue,
+          };
+      })),
+      [],
+    );
     const [errors, setErrors] = React.useState<ErrorsState<Values>>(() => mapValues(fixedInitialValues, _ => {
         const version = ++VERSION;
         return {
@@ -451,6 +461,7 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
     }, [validating, submitting, setSubmitting, execValidate, values, onSubmit]);
     return {
         values,
+        fieldsSetters,
         errors,
         globalError: globalErrors,
         setFieldError,
