@@ -298,7 +298,7 @@ export interface UseFormResult<Values extends Record<string, any>> {
     handleBlurs: {
         [key in keyof Values]: (event?: React.SyntheticEvent) => void;
     },
-    handleSubmit: (event?: React.SyntheticEvent) => void;
+    handleSubmit: (event?: React.SyntheticEvent) => Promise<boolean>;
     submitting: boolean,
     validating: boolean,
 }
@@ -473,13 +473,16 @@ export const useForm = <Values extends Record<string, any>> ({ initialValues, va
     ), [execValidate, fixedInitialValues, submitting, values]);
     const handleSubmit = React.useCallback(async (evt?: React.SyntheticEvent) => {
         evt && evt.preventDefault && evt.preventDefault();
-        if (validating || submitting) return;
+        if (validating || submitting) return false;
         setSubmitting(true);
         try {
             const meta = mapValues(fixedInitialValues, () => ({ change: false, blur: false }));
             const [errorsPatch, newGlobalError, version] = await execValidate(values, meta, true);
             if (!hasError(errors, errorsPatch, newGlobalError, version) && !unmountRef.current) {
                 await onSubmit(values);
+                return true;
+            } else {
+                return false;
             }
         } finally {
             setSubmitting(false);
